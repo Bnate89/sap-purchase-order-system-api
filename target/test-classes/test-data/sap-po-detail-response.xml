@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BAPI_PO_GETDETAIL>
+    <PO_HEADER>
+        <PO_NUMBER>4500000001</PO_NUMBER>
+        <COMP_CODE>1000</COMP_CODE>
+        <PURCH_ORG>1000</PURCH_ORG>
+        <PUR_GROUP>001</PUR_GROUP>
+        <VENDOR>1000001</VENDOR>
+        <DOC_DATE>20240115</DOC_DATE>
+        <CURRENCY>USD</CURRENCY>
+        <STATUS>R</STATUS>
+        <NET_VALUE>5000.00</NET_VALUE>
+        <CREATED_BY>SAPUSER</CREATED_BY>
+        <CREAT_DATE>20240115</CREAT_DATE>
+        <CREAT_TIME>103045</CREAT_TIME>
+        <CHG_DATE>20240116</CHG_DATE>
+        <CHG_TIME>143022</CHG_TIME>
+    </PO_HEADER>
+    <PO_ITEMS>
+        <POITEM>
+            <PO_ITEM>00010</PO_ITEM>
+            <MATERIAL>MAT001</MATERIAL>
+            <SHORT_TEXT>Test Material 1</SHORT_TEXT>
+            <QUANTITY>100</QUANTITY>
+            <PO_UNIT>EA</PO_UNIT>
+            <PLANT>1000</PLANT>
+            <NET_PRICE>50.00</NET_PRICE>
+            <TAX_CODE>V1</TAX_CODE>
+            <DELIV_DATE>20240201</DELIV_DATE>
+        </POITEM>
+        <POITEM>
+            <PO_ITEM>00020</PO_ITEM>
+            <MATERIAL>MAT002</MATERIAL>
+            <SHORT_TEXT>Test Material 2</SHORT_TEXT>
+            <QUANTITY>50</QUANTITY>
+            <PO_UNIT>EA</PO_UNIT>
+            <PLANT>1000</PLANT>
+            <NET_PRICE>70.00</NET_PRICE>
+            <TAX_CODE>V1</TAX_CODE>
+            <DELIV_DATE>20240215</DELIV_DATE>
+        </POITEM>
+    </PO_ITEMS>
+    <PO_ADDRESS>
+        <STREET>123 Main Street</STREET>
+        <CITY>New York</CITY>
+        <REGION>NY</REGION>
+        <POSTL_COD1>10001</POSTL_COD1>
+        <COUNTRY>US</COUNTRY>
+    </PO_ADDRESS>
+</BAPI_PO_GETDETAIL>

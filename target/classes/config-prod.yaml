@@ -1,0 +1,33 @@
+# SAP Purchase Order System API - Production Configuration
+# Environment: PROD
+
+# HTTP Listener Configuration
+http:
+  host: "0.0.0.0"
+  port: "8081"
+  basePath: "/sap-po-system/v1"
+
+# SAP Connection Configuration
+sap:
+  host: "sap-prod.example.com"
+  systemNumber: "00"
+  client: "300"
+  language: "EN"
+  destinationName: "SAP_PROD"
+  # Connection Pool Settings
+  pool:
+    peakLimit: "50"
+    capacity: "25"
+    expirationTime: "30000"
+    expirationCheckPeriod: "60000"
+
+# API Configuration
+api:
+  pagination:
+    defaultLimit: "50"
+    maxLimit: "500"
+
+# Logging Configuration
+logging:
+  level: "WARN"
+  correlationIdHeader: "X-Correlation-ID"

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BAPI_TRANSACTION_COMMIT>
+    <RETURN>
+        <BAPIRET2>
+            <TYPE>S</TYPE>
+            <ID>00</ID>
+            <NUMBER>000</NUMBER>
+            <MESSAGE>Transaction committed successfully</MESSAGE>
+        </BAPIRET2>
+    </RETURN>
+</BAPI_TRANSACTION_COMMIT>

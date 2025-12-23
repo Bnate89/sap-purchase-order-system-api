@@ -1,0 +1,317 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xsi:schemaLocation="
+          http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+          http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+          http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd
+          http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- ============================================== -->
+    <!-- Main API Flow - Entry Point                   -->
+    <!-- ============================================== -->
+    <flow name="sap-po-system-api-main" doc:name="SAP PO System API Main Flow">
+        <http:listener config-ref="HTTP_Listener_Config" path="${http.basePath}/*" doc:name="HTTP Listener">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+
+        <logger level="INFO" doc:name="Log Request"
+                message="Incoming Request: #[attributes.method] #[attributes.requestPath] - CorrelationId: #[correlationId]"/>
+
+        <apikit:router config-ref="sap-po-system-api-config" doc:name="APIKit Router"/>
+
+        <error-handler ref="Global_Error_Handler"/>
+    </flow>
+
+    <!-- ============================================== -->
+    <!-- API Console Flow                              -->
+    <!-- ============================================== -->
+
+    <!-- ============================================== -->
+    <!-- GET /purchase-orders - List Purchase Orders   -->
+    <!-- ============================================== -->
+    <flow name="get:\purchase-orders:sap-po-system-api-config" doc:name="GET Purchase Orders List">
+        <logger level="INFO" doc:name="Log Get PO List Request"
+                message="GET /purchase-orders - Filters: vendorId=#[attributes.queryParams.vendorId], companyCode=#[attributes.queryParams.companyCode], status=#[attributes.queryParams.status]"/>
+
+        <!-- Store query parameters -->
+        <set-variable variableName="vendorId" value="#[attributes.queryParams.vendorId]" doc:name="Set vendorId"/>
+        <set-variable variableName="companyCode" value="#[attributes.queryParams.companyCode]" doc:name="Set companyCode"/>
+        <set-variable variableName="status" value="#[attributes.queryParams.status]" doc:name="Set status"/>
+        <set-variable variableName="fromDate" value="#[attributes.queryParams.fromDate]" doc:name="Set fromDate"/>
+        <set-variable variableName="toDate" value="#[attributes.queryParams.toDate]" doc:name="Set toDate"/>
+        <set-variable variableName="limit" value="#[attributes.queryParams.limit default '50']" doc:name="Set limit"/>
+        <set-variable variableName="offset" value="#[attributes.queryParams.offset default '0']" doc:name="Set offset"/>
+
+        <!-- Prepare BAPI input for PO list retrieval -->
+        <ee:transform doc:name="Prepare BAPI_PO_GETITEMS Input">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+---
+{
+    BAPI_PO_GETITEMS: {
+        "import": {
+            (PURCHASINGORG: vars.companyCode) if (vars.companyCode != null),
+            (VENDOR: vars.vendorId) if (vars.vendorId != null),
+            (DOC_DATE_FROM: (vars.fromDate as Date) as String {format: "yyyyMMdd"}) if (vars.fromDate != null),
+            (DOC_DATE_TO: (vars.toDate as Date) as String {format: "yyyyMMdd"}) if (vars.toDate != null),
+            WITH_PO_HEADERS: "X"
+        }
+    }
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <!-- Call SAP BAPI -->
+        <flow-ref name="call-sap-bapi-subflow" doc:name="Call SAP BAPI"/>
+
+        <!-- Transform SAP response to canonical model -->
+        <ee:transform doc:name="Transform to Canonical PO List">
+            <ee:message>
+                <ee:set-payload resource="dwl/sap-list-to-canonical-po.dwl"/>
+            </ee:message>
+        </ee:transform>
+
+        <!-- Apply pagination -->
+        <ee:transform doc:name="Apply Pagination">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+var offset = vars.offset as Number default 0
+var limit = vars.limit as Number default 50
+---
+payload[offset to (offset + limit - 1)] default []]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <logger level="INFO" doc:name="Log Response"
+                message="GET /purchase-orders - Returned #[sizeOf(payload)] records"/>
+    </flow>
+
+    <!-- ============================================== -->
+    <!-- GET /purchase-orders/{poId} - Get Single PO   -->
+    <!-- ============================================== -->
+    <flow name="get:\purchase-orders\(poId):sap-po-system-api-config" doc:name="GET Purchase Order by ID">
+        <logger level="INFO" doc:name="Log Get PO Request"
+                message="GET /purchase-orders/#[attributes.uriParams.poId]"/>
+
+        <!-- Store PO ID -->
+        <set-variable variableName="poId" value="#[attributes.uriParams.poId]" doc:name="Set poId"/>
+
+        <!-- Prepare BAPI input -->
+        <ee:transform doc:name="Prepare BAPI_PO_GETDETAIL Input">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+---
+{
+    BAPI_PO_GETDETAIL: {
+        "import": {
+            PURCHASEORDER: vars.poId,
+            ITEMS: "X",
+            ACCOUNT_ASSIGNMENT: "X",
+            SCHEDULES: "X",
+            HISTORY: "X"
+        }
+    }
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <!-- Call SAP BAPI -->
+        <flow-ref name="call-sap-bapi-subflow" doc:name="Call SAP BAPI"/>
+
+        <!-- Check if PO exists -->
+        <choice doc:name="Check PO Exists">
+            <when expression="#[payload.BAPI_PO_GETDETAIL.PO_HEADER.PO_NUMBER == null or isEmpty(payload.BAPI_PO_GETDETAIL.PO_HEADER.PO_NUMBER)]">
+                <raise-error type="APP:PO_NOT_FOUND" description="#['Purchase Order ' ++ vars.poId ++ ' not found']" doc:name="Raise PO Not Found"/>
+            </when>
+            <otherwise>
+                <!-- Transform SAP response to canonical model -->
+                <ee:transform doc:name="Transform to Canonical PO">
+                    <ee:message>
+                        <ee:set-payload resource="dwl/sap-to-canonical-po.dwl"/>
+                    </ee:message>
+                </ee:transform>
+            </otherwise>
+        </choice>
+
+        <logger level="INFO" doc:name="Log Response"
+                message="GET /purchase-orders/#[vars.poId] - Successfully retrieved"/>
+    </flow>
+
+    <!-- ============================================== -->
+    <!-- SAP BAPI Call Sub-Flow                        -->
+    <!-- ============================================== -->
+    <!-- NOTE: This is a mock implementation for compilation -->
+    <!-- Replace with actual SAP connector calls when SAP JCo libraries are installed -->
+    <!-- 
+    Production Implementation:
+    <sap:synchronous-remote-function-call config-ref="SAP_Config"
+                                           key="#[vars.bapiName]"
+                                           doc:name="SAP Synchronous RFC Call"/>
+    -->
+    <sub-flow name="call-sap-bapi-subflow" doc:name="Call SAP BAPI Sub-Flow">
+        <logger level="DEBUG" doc:name="Log BAPI Call"
+                message="Calling SAP BAPI - CorrelationId: #[correlationId]"/>
+
+        <!-- Extract BAPI name from payload root element -->
+        <set-variable variableName="bapiName" value="#[keysOf(payload)[0] as String]" doc:name="Extract BAPI Name"/>
+
+        <!-- Mock SAP Response - Replace with actual SAP connector when available -->
+        <choice doc:name="Mock SAP Response Router">
+            <when expression="#[vars.bapiName == 'BAPI_PO_GETDETAIL']">
+                <ee:transform doc:name="Mock BAPI_PO_GETDETAIL Response">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+---
+{
+    BAPI_PO_GETDETAIL: {
+        PO_HEADER: {
+            PO_NUMBER: vars.poId default "4500000001",
+            COMP_CODE: "1000",
+            PURCH_ORG: "1000",
+            PUR_GROUP: "001",
+            VENDOR: "1000001",
+            DOC_DATE: "20240115",
+            CURRENCY: "USD",
+            STATUS: "R",
+            NET_VALUE: "5000.00",
+            CREATED_BY: "SAPUSER",
+            CREAT_DATE: "20240115",
+            CREAT_TIME: "103045"
+        },
+        PO_ITEMS: {
+            POITEM: [
+                {
+                    PO_ITEM: "00010",
+                    MATERIAL: "MAT001",
+                    SHORT_TEXT: "Test Material 1",
+                    QUANTITY: "100",
+                    PO_UNIT: "EA",
+                    PLANT: "1000",
+                    NET_PRICE: "50.00",
+                    TAX_CODE: "V1",
+                    DELIV_DATE: "20240201"
+                }
+            ]
+        },
+        PO_ADDRESS: {
+            STREET: "123 Main Street",
+            CITY: "New York",
+            REGION: "NY",
+            POSTL_COD1: "10001",
+            COUNTRY: "US"
+        }
+    }
+}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+            </when>
+            <when expression="#[vars.bapiName == 'BAPI_PO_GETITEMS']">
+                <ee:transform doc:name="Mock BAPI_PO_GETITEMS Response">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+---
+{
+    BAPI_PO_GETITEMS: {
+        PO_HEADERS: {
+            POHEADER: [
+                {
+                    PO_NUMBER: "4500000001",
+                    COMP_CODE: "1000",
+                    PURCH_ORG: "1000",
+                    PUR_GROUP: "001",
+                    VENDOR: "1000001",
+                    DOC_DATE: "20240115",
+                    CURRENCY: "USD",
+                    STATUS: "R",
+                    NET_VALUE: "5000.00",
+                    CREATED_BY: "SAPUSER"
+                },
+                {
+                    PO_NUMBER: "4500000002",
+                    COMP_CODE: "1000",
+                    PURCH_ORG: "1000",
+                    PUR_GROUP: "001",
+                    VENDOR: "1000002",
+                    DOC_DATE: "20240116",
+                    CURRENCY: "EUR",
+                    STATUS: "P",
+                    NET_VALUE: "3500.00",
+                    CREATED_BY: "SAPUSER"
+                }
+            ]
+        },
+        PO_ITEMS: {
+            POITEM: [
+                {
+                    PO_NUMBER: "4500000001",
+                    PO_ITEM: "00010",
+                    MATERIAL: "MAT001",
+                    SHORT_TEXT: "Test Material 1",
+                    QUANTITY: "100",
+                    PO_UNIT: "EA",
+                    PLANT: "1000",
+                    NET_PRICE: "50.00",
+                    TAX_CODE: "V1",
+                    DELIV_DATE: "20240201"
+                },
+                {
+                    PO_NUMBER: "4500000002",
+                    PO_ITEM: "00010",
+                    MATERIAL: "MAT002",
+                    SHORT_TEXT: "Test Material 2",
+                    QUANTITY: "50",
+                    PO_UNIT: "EA",
+                    PLANT: "1000",
+                    NET_PRICE: "70.00",
+                    TAX_CODE: "V1",
+                    DELIV_DATE: "20240215"
+                }
+            ]
+        }
+    }
+}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+            </when>
+            <otherwise>
+                <ee:transform doc:name="Mock Default Response">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+---
+{
+    (vars.bapiName): {
+        RETURN: {
+            BAPIRET2: {
+                TYPE: "S",
+                MESSAGE: "Mock response for " ++ vars.bapiName
+            }
+        }
+    }
+}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+            </otherwise>
+        </choice>
+
+        <logger level="DEBUG" doc:name="Log BAPI Response"
+                message="SAP BAPI #[vars.bapiName] completed - CorrelationId: #[correlationId]"/>
+    </sub-flow>
+
+</mule>

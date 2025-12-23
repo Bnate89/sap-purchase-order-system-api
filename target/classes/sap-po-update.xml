@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xsi:schemaLocation="
+          http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+          http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- ============================================== -->
+    <!-- PUT /purchase-orders/{poId} - Update PO       -->
+    <!-- ============================================== -->
+    <flow name="put:\purchase-orders\(poId):application\json:sap-po-system-api-config" doc:name="PUT Update Purchase Order">
+        <logger level="INFO" doc:name="Log Update PO Request"
+                message="PUT /purchase-orders/#[attributes.uriParams.poId] - Updating Purchase Order"/>
+
+        <!-- Store PO ID and update request -->
+        <set-variable variableName="poId" value="#[attributes.uriParams.poId]" doc:name="Set poId"/>
+        <set-variable variableName="updateRequest" value="#[payload]" doc:name="Store Update Request"/>
+
+        <!-- First verify the PO exists -->
+        <flow-ref name="verify-po-exists-subflow" doc:name="Verify PO Exists"/>
+
+        <!-- Restore update request payload -->
+        <set-payload value="#[vars.updateRequest]" doc:name="Restore Update Request"/>
+
+        <!-- Transform canonical request to SAP BAPI format -->
+        <ee:transform doc:name="Transform to BAPI_PO_CHANGE Input">
+            <ee:message>
+                <ee:set-payload resource="dwl/canonical-to-sap-update.dwl"/>
+            </ee:message>
+        </ee:transform>
+
+        <!-- Call SAP BAPI_PO_CHANGE -->
+        <flow-ref name="call-sap-bapi-subflow" doc:name="Call BAPI_PO_CHANGE"/>
+
+        <!-- Store BAPI response -->
+        <set-variable variableName="changeResponse" value="#[payload]" doc:name="Store Change Response"/>
+
+        <!-- Check for BAPI errors -->
+        <choice doc:name="Check BAPI Response">
+            <when expression="#[payload.BAPI_PO_CHANGE.RETURN.*BAPIRET2 filter ($.TYPE == 'E') != []]">
+                <!-- Extract error message -->
+                <set-variable variableName="errorMessage" 
+                              value="#[(payload.BAPI_PO_CHANGE.RETURN.*BAPIRET2 filter ($.TYPE == 'E'))[0].MESSAGE default 'Unknown SAP error']" 
+                              doc:name="Extract Error Message"/>
+                <raise-error type="APP:VALIDATION_ERROR" description="#[vars.errorMessage]" doc:name="Raise Validation Error"/>
+            </when>
+            <otherwise>
+                <!-- Commit the transaction -->
+                <flow-ref name="commit-sap-transaction-subflow" doc:name="Commit SAP Transaction"/>
+
+                <!-- Fetch the updated PO details -->
+                <ee:transform doc:name="Prepare BAPI_PO_GETDETAIL Input">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+---
+{
+    BAPI_PO_GETDETAIL: {
+        "import": {
+            PURCHASEORDER: vars.poId,
+            ITEMS: "X",
+            ACCOUNT_ASSIGNMENT: "X"
+        }
+    }
+}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+
+                <!-- Call SAP to get updated PO details -->
+                <flow-ref name="call-sap-bapi-subflow" doc:name="Get Updated PO Details"/>
+
+                <!-- Transform to canonical response -->
+                <ee:transform doc:name="Transform to Canonical PO">
+                    <ee:message>
+                        <ee:set-payload resource="dwl/sap-to-canonical-po.dwl"/>
+                    </ee:message>
+                </ee:transform>
+            </otherwise>
+        </choice>
+
+        <logger level="INFO" doc:name="Log Update Response"
+                message="PUT /purchase-orders/#[vars.poId] - Successfully updated"/>
+    </flow>
+
+    <!-- ============================================== -->
+    <!-- Verify PO Exists Sub-Flow                     -->
+    <!-- ============================================== -->
+    <sub-flow name="verify-po-exists-subflow" doc:name="Verify PO Exists">
+        <logger level="DEBUG" doc:name="Log Verify PO"
+                message="Verifying PO exists: #[vars.poId]"/>
+
+        <!-- Prepare BAPI input to check if PO exists -->
+        <ee:transform doc:name="Prepare BAPI_PO_GETDETAIL Input">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+---
+{
+    BAPI_PO_GETDETAIL: {
+        "import": {
+            PURCHASEORDER: vars.poId
+        }
+    }
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <!-- Call SAP BAPI -->
+        <flow-ref name="call-sap-bapi-subflow" doc:name="Call SAP BAPI"/>
+
+        <!-- Check if PO exists -->
+        <choice doc:name="Check PO Exists">
+            <when expression="#[payload.BAPI_PO_GETDETAIL.PO_HEADER.PO_NUMBER == null or isEmpty(payload.BAPI_PO_GETDETAIL.PO_HEADER.PO_NUMBER)]">
+                <raise-error type="APP:PO_NOT_FOUND" description="#['Purchase Order ' ++ vars.poId ++ ' not found']" doc:name="Raise PO Not Found"/>
+            </when>
+            <otherwise>
+                <logger level="DEBUG" doc:name="PO Exists" message="PO #[vars.poId] exists"/>
+            </otherwise>
+        </choice>
+    </sub-flow>
+
+</mule>

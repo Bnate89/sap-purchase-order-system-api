@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xsi:schemaLocation="
+          http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+          http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- ============================================== -->
+    <!-- POST /purchase-orders - Create Purchase Order -->
+    <!-- ============================================== -->
+    <flow name="post:\purchase-orders:application\json:sap-po-system-api-config" doc:name="POST Create Purchase Order">
+        <logger level="INFO" doc:name="Log Create PO Request"
+                message="POST /purchase-orders - Creating new Purchase Order"/>
+
+        <!-- Store original request -->
+        <set-variable variableName="createRequest" value="#[payload]" doc:name="Store Create Request"/>
+
+        <!-- Validate required fields -->
+        <flow-ref name="validate-create-request-subflow" doc:name="Validate Create Request"/>
+
+        <!-- Transform canonical request to SAP BAPI format -->
+        <ee:transform doc:name="Transform to BAPI_PO_CREATE1 Input">
+            <ee:message>
+                <ee:set-payload resource="dwl/canonical-to-sap-create.dwl"/>
+            </ee:message>
+        </ee:transform>
+
+        <!-- Call SAP BAPI_PO_CREATE1 -->
+        <flow-ref name="call-sap-bapi-subflow" doc:name="Call BAPI_PO_CREATE1"/>
+
+        <!-- Store BAPI response -->
+        <set-variable variableName="createResponse" value="#[payload]" doc:name="Store Create Response"/>
+
+        <!-- Check for BAPI errors -->
+        <choice doc:name="Check BAPI Response">
+            <when expression="#[payload.BAPI_PO_CREATE1.RETURN.*BAPIRET2 filter ($.TYPE == 'E') != []]">
+                <!-- Extract error message -->
+                <set-variable variableName="errorMessage" 
+                              value="#[(payload.BAPI_PO_CREATE1.RETURN.*BAPIRET2 filter ($.TYPE == 'E'))[0].MESSAGE default 'Unknown SAP error']" 
+                              doc:name="Extract Error Message"/>
+                <raise-error type="APP:VALIDATION_ERROR" description="#[vars.errorMessage]" doc:name="Raise Validation Error"/>
+            </when>
+            <otherwise>
+                <!-- Extract created PO number -->
+                <set-variable variableName="createdPoNumber" 
+                              value="#[payload.BAPI_PO_CREATE1.EXPURCHASEORDER default '']" 
+                              doc:name="Extract Created PO Number"/>
+
+                <!-- Commit the transaction -->
+                <flow-ref name="commit-sap-transaction-subflow" doc:name="Commit SAP Transaction"/>
+
+                <!-- Fetch the created PO details -->
+                <ee:transform doc:name="Prepare BAPI_PO_GETDETAIL Input">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+---
+{
+    BAPI_PO_GETDETAIL: {
+        "import": {
+            PURCHASEORDER: vars.createdPoNumber,
+            ITEMS: "X",
+            ACCOUNT_ASSIGNMENT: "X"
+        }
+    }
+}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+
+                <!-- Call SAP to get created PO details -->
+                <flow-ref name="call-sap-bapi-subflow" doc:name="Get Created PO Details"/>
+
+                <!-- Transform to canonical response -->
+                <ee:transform doc:name="Transform to Canonical PO">
+                    <ee:message>
+                        <ee:set-payload resource="dwl/sap-to-canonical-po.dwl"/>
+                    </ee:message>
+                </ee:transform>
+
+                <!-- Set HTTP status to 201 Created -->
+                <set-variable variableName="httpStatus" value="#[201]" doc:name="Set HTTP Status 201"/>
+            </otherwise>
+        </choice>
+
+        <logger level="INFO" doc:name="Log Create Response"
+                message="POST /purchase-orders - Created PO: #[vars.createdPoNumber default 'N/A']"/>
+    </flow>
+
+    <!-- ============================================== -->
+    <!-- Validate Create Request Sub-Flow              -->
+    <!-- ============================================== -->
+    <sub-flow name="validate-create-request-subflow" doc:name="Validate Create Request">
+        <choice doc:name="Validate Required Fields">
+            <when expression="#[payload.companyCode == null or isEmpty(payload.companyCode)]">
+                <raise-error type="APP:VALIDATION_ERROR" description="companyCode is required" doc:name="Missing companyCode"/>
+            </when>
+            <when expression="#[payload.purchasingOrg == null or isEmpty(payload.purchasingOrg)]">
+                <raise-error type="APP:VALIDATION_ERROR" description="purchasingOrg is required" doc:name="Missing purchasingOrg"/>
+            </when>
+            <when expression="#[payload.purchasingGroup == null or isEmpty(payload.purchasingGroup)]">
+                <raise-error type="APP:VALIDATION_ERROR" description="purchasingGroup is required" doc:name="Missing purchasingGroup"/>
+            </when>
+            <when expression="#[payload.vendorId == null or isEmpty(payload.vendorId)]">
+                <raise-error type="APP:VALIDATION_ERROR" description="vendorId is required" doc:name="Missing vendorId"/>
+            </when>
+            <when expression="#[payload.currency == null or isEmpty(payload.currency)]">
+                <raise-error type="APP:VALIDATION_ERROR" description="currency is required" doc:name="Missing currency"/>
+            </when>
+            <when expression="#[payload.items == null or isEmpty(payload.items)]">
+                <raise-error type="APP:VALIDATION_ERROR" description="At least one item is required" doc:name="Missing items"/>
+            </when>
+            <otherwise>
+                <logger level="DEBUG" doc:name="Validation Passed" message="Create request validation passed"/>
+            </otherwise>
+        </choice>
+
+        <!-- Validate item fields -->
+        <foreach collection="#[payload.items]" doc:name="Validate Each Item">
+            <choice doc:name="Validate Item Fields">
+                <when expression="#[payload.quantity == null or payload.quantity &lt;= 0]">
+                    <raise-error type="APP:VALIDATION_ERROR" description="Item quantity must be greater than 0" doc:name="Invalid quantity"/>
+                </when>
+                <when expression="#[payload.unitOfMeasure == null or isEmpty(payload.unitOfMeasure)]">
+                    <raise-error type="APP:VALIDATION_ERROR" description="Item unitOfMeasure is required" doc:name="Missing unitOfMeasure"/>
+                </when>
+                <when expression="#[payload.plant == null or isEmpty(payload.plant)]">
+                    <raise-error type="APP:VALIDATION_ERROR" description="Item plant is required" doc:name="Missing plant"/>
+                </when>
+                <otherwise>
+                    <logger level="DEBUG" doc:name="Item Valid" message="Item validation passed"/>
+                </otherwise>
+            </choice>
+        </foreach>
+
+        <!-- Restore original payload -->
+        <set-payload value="#[vars.createRequest]" doc:name="Restore Original Payload"/>
+    </sub-flow>
+
+    <!-- ============================================== -->
+    <!-- Commit SAP Transaction Sub-Flow               -->
+    <!-- ============================================== -->
+    <!-- NOTE: This is a mock implementation for compilation -->
+    <!-- Replace with actual SAP connector calls when SAP JCo libraries are installed -->
+    <sub-flow name="commit-sap-transaction-subflow" doc:name="Commit SAP Transaction">
+        <logger level="DEBUG" doc:name="Log Commit"
+                message="Committing SAP transaction - CorrelationId: #[correlationId]"/>
+
+        <!-- Prepare BAPI_TRANSACTION_COMMIT input -->
+        <ee:transform doc:name="Prepare BAPI_TRANSACTION_COMMIT">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+---
+{
+    BAPI_TRANSACTION_COMMIT: {
+        "import": {
+            WAIT: "X"
+        }
+    }
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <!-- Mock commit response - Replace with actual SAP connector when available -->
+        <!-- 
+        Production Implementation:
+        <sap:synchronous-remote-function-call config-ref="SAP_Config"
+                                               key="BAPI_TRANSACTION_COMMIT"
+                                               doc:name="BAPI_TRANSACTION_COMMIT"/>
+        -->
+        <ee:transform doc:name="Mock Commit Response">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+---
+{
+    BAPI_TRANSACTION_COMMIT: {
+        RETURN: {
+            BAPIRET2: {
+                TYPE: "S",
+                MESSAGE: "Transaction committed successfully"
+            }
+        }
+    }
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <logger level="DEBUG" doc:name="Log Commit Complete"
+                message="SAP transaction committed - CorrelationId: #[correlationId]"/>
+    </sub-flow>
+
+</mule>

@@ -1,0 +1,36 @@
+{
+    "companyCode": "1000",
+    "purchasingOrg": "1000",
+    "purchasingGroup": "001",
+    "vendorId": "1000001",
+    "currency": "USD",
+    "items": [
+        {
+            "materialId": "MAT001",
+            "description": "Test Material 1",
+            "quantity": 100,
+            "unitOfMeasure": "EA",
+            "plant": "1000",
+            "netPrice": 50.00,
+            "taxCode": "V1",
+            "expectedDeliveryDate": "2024-02-01"
+        },
+        {
+            "materialId": "MAT002",
+            "description": "Test Material 2",
+            "quantity": 50,
+            "unitOfMeasure": "EA",
+            "plant": "1000",
+            "netPrice": 70.00,
+            "taxCode": "V1",
+            "expectedDeliveryDate": "2024-02-15"
+        }
+    ],
+    "deliveryAddress": {
+        "street": "123 Main Street",
+        "city": "New York",
+        "state": "NY",
+        "postalCode": "10001",
+        "country": "US"
+    }
+}

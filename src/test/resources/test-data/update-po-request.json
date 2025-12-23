@@ -1,0 +1,18 @@
+{
+    "currency": "EUR",
+    "status": "APPROVED",
+    "items": [
+        {
+            "itemNumber": "00010",
+            "quantity": 150,
+            "netPrice": 55.00
+        }
+    ],
+    "deliveryAddress": {
+        "street": "456 Oak Avenue",
+        "city": "Los Angeles",
+        "state": "CA",
+        "postalCode": "90001",
+        "country": "US"
+    }
+}

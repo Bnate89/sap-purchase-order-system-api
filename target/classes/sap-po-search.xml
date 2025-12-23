@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xsi:schemaLocation="
+          http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+          http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- ============================================== -->
+    <!-- GET /search - Search Purchase Orders          -->
+    <!-- ============================================== -->
+    <flow name="get:\search:sap-po-system-api-config" doc:name="GET Search Purchase Orders">
+        <logger level="INFO" doc:name="Log Search Request"
+                message="GET /search - Query: #[attributes.queryParams.q]"/>
+
+        <!-- Store search query -->
+        <set-variable variableName="searchQuery" value="#[attributes.queryParams.q]" doc:name="Set searchQuery"/>
+
+        <!-- Validate search query -->
+        <choice doc:name="Validate Search Query">
+            <when expression="#[vars.searchQuery == null or isEmpty(vars.searchQuery)]">
+                <raise-error type="APP:VALIDATION_ERROR" description="Search query parameter 'q' is required" doc:name="Missing Query"/>
+            </when>
+            <otherwise>
+                <logger level="DEBUG" doc:name="Query Valid" message="Search query is valid"/>
+            </otherwise>
+        </choice>
+
+        <!-- Search in multiple SAP tables using scatter-gather -->
+        <scatter-gather doc:name="Parallel SAP Search">
+            <!-- Route 1: Search by PO Number (EKKO) -->
+            <route>
+                <flow-ref name="search-by-po-number-subflow" doc:name="Search by PO Number"/>
+            </route>
+            <!-- Route 2: Search by Material (MAKT) -->
+            <route>
+                <flow-ref name="search-by-material-subflow" doc:name="Search by Material"/>
+            </route>
+            <!-- Route 3: Search by Vendor (LFA1) -->
+            <route>
+                <flow-ref name="search-by-vendor-subflow" doc:name="Search by Vendor"/>
+            </route>
+        </scatter-gather>
+
+        <!-- Merge and deduplicate results -->
+        <ee:transform doc:name="Merge Search Results">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+// Flatten all results from scatter-gather routes
+var allResults = flatten(payload.payload map (route) -> route.payload default [])
+// Deduplicate by PO ID
+var uniqueResults = allResults distinctBy $.id
+---
+uniqueResults]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <logger level="INFO" doc:name="Log Search Response"
+                message="GET /search - Found #[sizeOf(payload)] results for query: #[vars.searchQuery]"/>
+    </flow>
+
+    <!-- ============================================== -->
+    <!-- Search by PO Number Sub-Flow                  -->
+    <!-- ============================================== -->
+    <!-- NOTE: Mock implementation - Replace with SAP connector when JCo libraries available -->
+    <sub-flow name="search-by-po-number-subflow" doc:name="Search by PO Number">
+        <logger level="DEBUG" doc:name="Log PO Number Search"
+                message="Searching by PO Number: #[vars.searchQuery]"/>
+
+        <!-- Mock search results -->
+        <ee:transform doc:name="Mock PO Number Search Results">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+var query = upper(vars.searchQuery default "")
+---
+if (query contains "4500")
+    [{
+        id: "4500000001",
+        companyCode: "1000",
+        purchasingOrg: "1000",
+        purchasingGroup: "001",
+        vendorId: "1000001",
+        documentDate: "2024-01-15",
+        currency: "USD",
+        status: "RELEASED",
+        items: []
+    }]
+else []]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </sub-flow>
+
+    <!-- ============================================== -->
+    <!-- Search by Material Sub-Flow                   -->
+    <!-- ============================================== -->
+    <!-- NOTE: Mock implementation - Replace with SAP connector when JCo libraries available -->
+    <sub-flow name="search-by-material-subflow" doc:name="Search by Material">
+        <logger level="DEBUG" doc:name="Log Material Search"
+                message="Searching by Material: #[vars.searchQuery]"/>
+
+        <!-- Mock search results -->
+        <ee:transform doc:name="Mock Material Search Results">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+var query = upper(vars.searchQuery default "")
+---
+if ((query contains "MAT") or (query contains "MATERIAL"))
+    [{
+        id: "4500000002",
+        companyCode: "1000",
+        purchasingOrg: "1000",
+        purchasingGroup: "001",
+        vendorId: "1000002",
+        documentDate: "2024-01-16",
+        currency: "EUR",
+        status: "PENDING",
+        items: []
+    }]
+else []]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </sub-flow>
+
+    <!-- ============================================== -->
+    <!-- Search by Vendor Sub-Flow                     -->
+    <!-- ============================================== -->
+    <!-- NOTE: Mock implementation - Replace with SAP connector when JCo libraries available -->
+    <sub-flow name="search-by-vendor-subflow" doc:name="Search by Vendor">
+        <logger level="DEBUG" doc:name="Log Vendor Search"
+                message="Searching by Vendor: #[vars.searchQuery]"/>
+
+        <!-- Mock search results -->
+        <ee:transform doc:name="Mock Vendor Search Results">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+var query = upper(vars.searchQuery default "")
+---
+if ((query contains "ACME") or (query contains "VENDOR"))
+    [{
+        id: "4500000003",
+        companyCode: "1000",
+        purchasingOrg: "1000",
+        purchasingGroup: "002",
+        vendorId: "1000003",
+        documentDate: "2024-01-17",
+        currency: "USD",
+        status: "APPROVED",
+        items: []
+    }]
+else []]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </sub-flow>
+
+</mule>

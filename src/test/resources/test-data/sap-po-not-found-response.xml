@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BAPI_PO_GETDETAIL>
+    <PO_HEADER>
+        <PO_NUMBER></PO_NUMBER>
+    </PO_HEADER>
+    <PO_ITEMS/>
+    <RETURN>
+        <BAPIRET2>
+            <TYPE>E</TYPE>
+            <ID>06</ID>
+            <NUMBER>017</NUMBER>
+            <MESSAGE>Purchase order does not exist</MESSAGE>
+        </BAPIRET2>
+    </RETURN>
+</BAPI_PO_GETDETAIL>

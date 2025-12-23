@@ -1,0 +1,8 @@
+# SAP Purchase Order System API - Secure Properties
+# These values should be encrypted using the secure-properties-tool
+# Example: java -cp secure-properties-tool.jar com.mulesoft.tools.SecurePropertiesTool string encrypt AES CBC <key> <value>
+
+# SAP Credentials (encrypted values - replace with actual encrypted values)
+sap:
+  username: "![encrypted_sap_username]"
+  password: "![encrypted_sap_password]"

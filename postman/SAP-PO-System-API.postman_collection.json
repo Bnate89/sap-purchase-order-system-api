@@ -1,0 +1,328 @@
+{
+  "info": {
+    "_postman_id": "sap-po-system-api-collection",
+    "name": "SAP Purchase Order System API",
+    "description": "Collection for testing SAP Purchase Order System API endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8081/sap-po-system/v1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Purchase Orders",
+      "item": [
+        {
+          "name": "GET - List Purchase Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/purchase-orders?limit=50&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["purchase-orders"],
+              "query": [
+                {
+                  "key": "vendorId",
+                  "value": "1000001",
+                  "disabled": true
+                },
+                {
+                  "key": "companyCode",
+                  "value": "1000",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "RELEASED",
+                  "disabled": true
+                },
+                {
+                  "key": "fromDate",
+                  "value": "2024-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "toDate",
+                  "value": "2024-12-31",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Retrieve purchase orders with optional filtering and pagination"
+          },
+          "response": []
+        },
+        {
+          "name": "GET - List POs by Vendor",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/purchase-orders?vendorId=1000001&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["purchase-orders"],
+              "query": [
+                {
+                  "key": "vendorId",
+                  "value": "1000001"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Retrieve purchase orders filtered by vendor ID"
+          },
+          "response": []
+        },
+        {
+          "name": "GET - Purchase Order by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/purchase-orders/4500000001",
+              "host": ["{{baseUrl}}"],
+              "path": ["purchase-orders", "4500000001"]
+            },
+            "description": "Retrieve a specific Purchase Order by its ID"
+          },
+          "response": []
+        },
+        {
+          "name": "POST - Create Purchase Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"companyCode\": \"1000\",\n    \"purchasingOrg\": \"1000\",\n    \"purchasingGroup\": \"001\",\n    \"vendorId\": \"1000001\",\n    \"currency\": \"USD\",\n    \"items\": [\n        {\n            \"materialId\": \"MAT001\",\n            \"description\": \"Test Material 1\",\n            \"quantity\": 100,\n            \"unitOfMeasure\": \"EA\",\n            \"plant\": \"1000\",\n            \"netPrice\": 50.00,\n            \"taxCode\": \"V1\",\n            \"expectedDeliveryDate\": \"2024-02-01\"\n        },\n        {\n            \"materialId\": \"MAT002\",\n            \"description\": \"Test Material 2\",\n            \"quantity\": 50,\n            \"unitOfMeasure\": \"EA\",\n            \"plant\": \"1000\",\n            \"netPrice\": 70.00,\n            \"taxCode\": \"V1\",\n            \"expectedDeliveryDate\": \"2024-02-15\"\n        }\n    ],\n    \"deliveryAddress\": {\n        \"street\": \"123 Main Street\",\n        \"city\": \"New York\",\n        \"state\": \"NY\",\n        \"postalCode\": \"10001\",\n        \"country\": \"US\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/purchase-orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["purchase-orders"]
+            },
+            "description": "Create a new Purchase Order in SAP"
+          },
+          "response": []
+        },
+        {
+          "name": "PUT - Update Purchase Order",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"currency\": \"EUR\",\n    \"status\": \"APPROVED\",\n    \"items\": [\n        {\n            \"itemNumber\": \"00010\",\n            \"quantity\": 150,\n            \"netPrice\": 55.00\n        }\n    ],\n    \"deliveryAddress\": {\n        \"street\": \"456 Oak Avenue\",\n        \"city\": \"Los Angeles\",\n        \"state\": \"CA\",\n        \"postalCode\": \"90001\",\n        \"country\": \"US\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/purchase-orders/4500000001",
+              "host": ["{{baseUrl}}"],
+              "path": ["purchase-orders", "4500000001"]
+            },
+            "description": "Update an existing Purchase Order in SAP"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Search",
+      "item": [
+        {
+          "name": "GET - Search POs by Text",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/search?q=laptop",
+              "host": ["{{baseUrl}}"],
+              "path": ["search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "laptop"
+                }
+              ]
+            },
+            "description": "Search POs by free-text (material, vendor name, PO number)"
+          },
+          "response": []
+        },
+        {
+          "name": "GET - Search POs by Vendor Name",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/search?q=ACME",
+              "host": ["{{baseUrl}}"],
+              "path": ["search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "ACME"
+                }
+              ]
+            },
+            "description": "Search POs by vendor name"
+          },
+          "response": []
+        },
+        {
+          "name": "GET - Search POs by PO Number",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/search?q=4500",
+              "host": ["{{baseUrl}}"],
+              "path": ["search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "4500"
+                }
+              ]
+            },
+            "description": "Search POs by partial PO number"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Error Scenarios",
+      "item": [
+        {
+          "name": "GET - PO Not Found (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/purchase-orders/9999999999",
+              "host": ["{{baseUrl}}"],
+              "path": ["purchase-orders", "9999999999"]
+            },
+            "description": "Test 404 error when PO does not exist"
+          },
+          "response": []
+        },
+        {
+          "name": "POST - Invalid Request (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"companyCode\": \"1000\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/purchase-orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["purchase-orders"]
+            },
+            "description": "Test 400 error with missing required fields"
+          },
+          "response": []
+        },
+        {
+          "name": "GET - Search Missing Query (400)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["search"]
+            },
+            "description": "Test 400 error when search query is missing"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

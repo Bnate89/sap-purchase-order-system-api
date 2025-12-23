@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+      xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xsi:schemaLocation="
+          http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+          http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+          http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+          http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <munit:config name="munit-po-create-test-suite" doc:name="MUnit PO CREATE Test Suite"/>
+
+    <!-- ============================================== -->
+    <!-- Test: POST /purchase-orders - Success         -->
+    <!-- ============================================== -->
+    <munit:test name="create-purchase-order-success-test" doc:name="POST Create Purchase Order - Success">
+        <munit:behavior>
+            <!-- Mock SAP BAPI_PO_CREATE1 call -->
+            <munit-tools:mock-when processor="sap:synchronous-remote-function-call" doc:name="Mock SAP BAPI CREATE">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:name" whereValue="SAP Synchronous RFC Call"/>
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload value="#[readUrl('classpath://test-data/sap-po-create-response.xml', 'application/xml')]"/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+
+            <!-- Mock BAPI_TRANSACTION_COMMIT -->
+            <munit-tools:mock-when processor="sap:synchronous-remote-function-call" doc:name="Mock SAP COMMIT">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:name" whereValue="BAPI_TRANSACTION_COMMIT"/>
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload value="#[readUrl('classpath://test-data/sap-commit-response.xml', 'application/xml')]"/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+        </munit:behavior>
+
+        <munit:execution>
+            <set-payload value="#[readUrl('classpath://test-data/create-po-request.json', 'application/json')]" doc:name="Set Create Request"/>
+            <set-variable variableName="createRequest" value="#[payload]" doc:name="Store Create Request"/>
+            <flow-ref name="post:\purchase-orders:application\json:sap-po-system-api-config" doc:name="Call POST Create PO Flow"/>
+        </munit:execution>
+
+        <munit:validation>
+            <munit-tools:assert-that expression="#[payload.id]" is="#[MunitTools::notNullValue()]" doc:name="Assert PO ID created"/>
+            <munit-tools:assert-that expression="#[vars.httpStatus]" is="#[MunitTools::equalTo(201)]" doc:name="Assert HTTP 201"/>
+        </munit:validation>
+    </munit:test>
+
+    <!-- ============================================== -->
+    <!-- Test: POST /purchase-orders - Missing Fields  -->
+    <!-- ============================================== -->
+    <munit:test name="create-purchase-order-missing-fields-test" doc:name="POST Create Purchase Order - Missing Fields" expectedErrorType="APP:VALIDATION_ERROR">
+        <munit:execution>
+            <!-- Set payload with missing required fields -->
+            <set-payload value='#[{"companyCode": "1000"}]' mimeType="application/json" doc:name="Set Invalid Request"/>
+            <set-variable variableName="createRequest" value="#[payload]" doc:name="Store Create Request"/>
+            <flow-ref name="post:\purchase-orders:application\json:sap-po-system-api-config" doc:name="Call POST Create PO Flow"/>
+        </munit:execution>
+    </munit:test>
+
+    <!-- ============================================== -->
+    <!-- Test: POST /purchase-orders - Invalid Items   -->
+    <!-- ============================================== -->
+    <munit:test name="create-purchase-order-invalid-items-test" doc:name="POST Create Purchase Order - Invalid Items" expectedErrorType="APP:VALIDATION_ERROR">
+        <munit:execution>
+            <!-- Set payload with invalid item quantity -->
+            <set-payload value='#[{
+                "companyCode": "1000",
+                "purchasingOrg": "1000",
+                "purchasingGroup": "001",
+                "vendorId": "1000001",
+                "currency": "USD",
+                "items": [
+                    {
+                        "quantity": 0,
+                        "unitOfMeasure": "EA",
+                        "plant": "1000"
+                    }
+                ]
+            }]' mimeType="application/json" doc:name="Set Invalid Items Request"/>
+            <set-variable variableName="createRequest" value="#[payload]" doc:name="Store Create Request"/>
+            <flow-ref name="post:\purchase-orders:application\json:sap-po-system-api-config" doc:name="Call POST Create PO Flow"/>
+        </munit:execution>
+    </munit:test>
+
+    <!-- ============================================== -->
+    <!-- Test: POST /purchase-orders - SAP BAPI Error  -->
+    <!-- ============================================== -->
+    <munit:test name="create-purchase-order-sap-error-test" doc:name="POST Create Purchase Order - SAP BAPI Error" expectedErrorType="APP:VALIDATION_ERROR">
+        <munit:behavior>
+            <!-- Mock SAP BAPI_PO_CREATE1 returning error -->
+            <munit-tools:mock-when processor="sap:synchronous-remote-function-call" doc:name="Mock SAP BAPI Error">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:name" whereValue="SAP Synchronous RFC Call"/>
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload value="#[readUrl('classpath://test-data/sap-po-create-error-response.xml', 'application/xml')]"/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+        </munit:behavior>
+
+        <munit:execution>
+            <set-payload value="#[readUrl('classpath://test-data/create-po-request.json', 'application/json')]" doc:name="Set Create Request"/>
+            <set-variable variableName="createRequest" value="#[payload]" doc:name="Store Create Request"/>
+            <flow-ref name="post:\purchase-orders:application\json:sap-po-system-api-config" doc:name="Call POST Create PO Flow"/>
+        </munit:execution>
+    </munit:test>
+
+</mule>

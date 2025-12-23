@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BAPI_PO_CREATE1>
+    <EXPURCHASEORDER></EXPURCHASEORDER>
+    <RETURN>
+        <BAPIRET2>
+            <TYPE>E</TYPE>
+            <ID>06</ID>
+            <NUMBER>001</NUMBER>
+            <MESSAGE>Vendor 9999999 does not exist</MESSAGE>
+        </BAPIRET2>
+        <BAPIRET2>
+            <TYPE>E</TYPE>
+            <ID>ME</ID>
+            <NUMBER>013</NUMBER>
+            <MESSAGE>Purchase order could not be created</MESSAGE>
+        </BAPIRET2>
+    </RETURN>
+</BAPI_PO_CREATE1>

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+      xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xsi:schemaLocation="
+          http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+          http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+          http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+          http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <munit:config name="munit-po-update-test-suite" doc:name="MUnit PO UPDATE Test Suite"/>
+
+    <!-- ============================================== -->
+    <!-- Test: PUT /purchase-orders/{poId} - Success   -->
+    <!-- ============================================== -->
+    <munit:test name="update-purchase-order-success-test" doc:name="PUT Update Purchase Order - Success">
+        <munit:behavior>
+            <!-- Mock SAP BAPI calls -->
+            <munit-tools:mock-when processor="sap:synchronous-remote-function-call" doc:name="Mock SAP BAPI">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:name" whereValue="SAP Synchronous RFC Call"/>
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload value="#[readUrl('classpath://test-data/sap-po-detail-response.xml', 'application/xml')]"/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+
+            <!-- Mock BAPI_TRANSACTION_COMMIT -->
+            <munit-tools:mock-when processor="sap:synchronous-remote-function-call" doc:name="Mock SAP COMMIT">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:name" whereValue="BAPI_TRANSACTION_COMMIT"/>
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload value="#[readUrl('classpath://test-data/sap-commit-response.xml', 'application/xml')]"/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+        </munit:behavior>
+
+        <munit:execution>
+            <set-variable variableName="poId" value="4500000001" doc:name="Set poId"/>
+            <set-payload value="#[readUrl('classpath://test-data/update-po-request.json', 'application/json')]" doc:name="Set Update Request"/>
+            <set-variable variableName="updateRequest" value="#[payload]" doc:name="Store Update Request"/>
+            <flow-ref name="put:\purchase-orders\(poId):application\json:sap-po-system-api-config" doc:name="Call PUT Update PO Flow"/>
+        </munit:execution>
+
+        <munit:validation>
+            <munit-tools:assert-that expression="#[payload.id]" is="#[MunitTools::notNullValue()]" doc:name="Assert PO ID returned"/>
+        </munit:validation>
+    </munit:test>
+
+    <!-- ============================================== -->
+    <!-- Test: PUT /purchase-orders/{poId} - Not Found -->
+    <!-- ============================================== -->
+    <munit:test name="update-purchase-order-not-found-test" doc:name="PUT Update Purchase Order - Not Found" expectedErrorType="APP:PO_NOT_FOUND">
+        <munit:behavior>
+            <!-- Mock SAP BAPI call returning empty PO -->
+            <munit-tools:mock-when processor="sap:synchronous-remote-function-call" doc:name="Mock SAP BAPI">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:name" whereValue="SAP Synchronous RFC Call"/>
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload value="#[readUrl('classpath://test-data/sap-po-not-found-response.xml', 'application/xml')]"/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+        </munit:behavior>
+
+        <munit:execution>
+            <set-variable variableName="poId" value="9999999999" doc:name="Set non-existent poId"/>
+            <set-payload value='#[{"currency": "EUR"}]' mimeType="application/json" doc:name="Set Update Request"/>
+            <set-variable variableName="updateRequest" value="#[payload]" doc:name="Store Update Request"/>
+            <flow-ref name="put:\purchase-orders\(poId):application\json:sap-po-system-api-config" doc:name="Call PUT Update PO Flow"/>
+        </munit:execution>
+    </munit:test>
+
+    <!-- ============================================== -->
+    <!-- Test: PUT /purchase-orders/{poId} - Backend Error -->
+    <!-- ============================================== -->
+    <!-- NOTE: When SAP connector is enabled, update expectedErrorType to SAP:EXECUTION_ERROR -->
+    <munit:test name="update-purchase-order-backend-error-test" doc:name="PUT Update Purchase Order - Backend Error" expectedErrorType="CONNECTIVITY">
+        <munit:behavior>
+            <!-- Mock backend error -->
+            <munit-tools:mock-when processor="ee:transform" doc:name="Mock Transform Error">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:name" whereValue="Mock BAPI_PO_GETDETAIL Response"/>
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:error typeId="CONNECTIVITY"/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+        </munit:behavior>
+
+        <munit:execution>
+            <set-variable variableName="poId" value="4500000001" doc:name="Set poId"/>
+            <set-payload value='#[{"currency": "EUR"}]' mimeType="application/json" doc:name="Set Update Request"/>
+            <set-variable variableName="updateRequest" value="#[payload]" doc:name="Store Update Request"/>
+            <flow-ref name="put:\purchase-orders\(poId):application\json:sap-po-system-api-config" doc:name="Call PUT Update PO Flow"/>
+        </munit:execution>
+    </munit:test>
+
+</mule>

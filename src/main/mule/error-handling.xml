@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xsi:schemaLocation="
+          http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+          http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- ============================================== -->
+    <!-- Global Error Handler for SAP PO System API    -->
+    <!-- ============================================== -->
+    <error-handler name="Global_Error_Handler" doc:name="Global Error Handler">
+
+        <!-- APIKit Bad Request Errors (400) -->
+        <on-error-propagate type="APIKIT:BAD_REQUEST" doc:name="On Error - Bad Request">
+            <set-variable variableName="httpStatus" value="#[400]" doc:name="Set HTTP Status 400"/>
+            <ee:transform doc:name="Transform Error Response">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    code: "BAD_REQUEST",
+    message: error.description default "Invalid request format or parameters",
+    details: error.detailedDescription
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <logger level="WARN" doc:name="Log Bad Request"
+                    message="Bad Request: #[error.description] - CorrelationId: #[correlationId]"/>
+        </on-error-propagate>
+
+        <!-- APIKit Not Found Errors (404) -->
+        <on-error-propagate type="APIKIT:NOT_FOUND" doc:name="On Error - Not Found">
+            <set-variable variableName="httpStatus" value="#[404]" doc:name="Set HTTP Status 404"/>
+            <ee:transform doc:name="Transform Error Response">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    code: "NOT_FOUND",
+    message: error.description default "Resource not found",
+    details: error.detailedDescription
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <logger level="WARN" doc:name="Log Not Found"
+                    message="Not Found: #[error.description] - CorrelationId: #[correlationId]"/>
+        </on-error-propagate>
+
+        <!-- APIKit Method Not Allowed Errors (405) -->
+        <on-error-propagate type="APIKIT:METHOD_NOT_ALLOWED" doc:name="On Error - Method Not Allowed">
+            <set-variable variableName="httpStatus" value="#[405]" doc:name="Set HTTP Status 405"/>
+            <ee:transform doc:name="Transform Error Response">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    code: "METHOD_NOT_ALLOWED",
+    message: error.description default "HTTP method not allowed for this resource",
+    details: error.detailedDescription
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <logger level="WARN" doc:name="Log Method Not Allowed"
+                    message="Method Not Allowed: #[error.description] - CorrelationId: #[correlationId]"/>
+        </on-error-propagate>
+
+        <!-- APIKit Unsupported Media Type Errors (415) -->
+        <on-error-propagate type="APIKIT:UNSUPPORTED_MEDIA_TYPE" doc:name="On Error - Unsupported Media Type">
+            <set-variable variableName="httpStatus" value="#[415]" doc:name="Set HTTP Status 415"/>
+            <ee:transform doc:name="Transform Error Response">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    code: "UNSUPPORTED_MEDIA_TYPE",
+    message: error.description default "Content type not supported",
+    details: error.detailedDescription
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <logger level="WARN" doc:name="Log Unsupported Media Type"
+                    message="Unsupported Media Type: #[error.description] - CorrelationId: #[correlationId]"/>
+        </on-error-propagate>
+
+        <!-- APIKit Not Acceptable Errors (406) -->
+        <on-error-propagate type="APIKIT:NOT_ACCEPTABLE" doc:name="On Error - Not Acceptable">
+            <set-variable variableName="httpStatus" value="#[406]" doc:name="Set HTTP Status 406"/>
+            <ee:transform doc:name="Transform Error Response">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    code: "NOT_ACCEPTABLE",
+    message: error.description default "Requested format not acceptable",
+    details: error.detailedDescription
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <logger level="WARN" doc:name="Log Not Acceptable"
+                    message="Not Acceptable: #[error.description] - CorrelationId: #[correlationId]"/>
+        </on-error-propagate>
+
+        <!-- Connectivity Errors (504 Gateway Timeout) -->
+        <!-- NOTE: When SAP connector is enabled, add SAP:CONNECTIVITY to this handler -->
+        <on-error-propagate type="CONNECTIVITY" doc:name="On Error - Connectivity">
+            <set-variable variableName="httpStatus" value="#[504]" doc:name="Set HTTP Status 504"/>
+            <ee:transform doc:name="Transform Error Response">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    code: "CONNECTION_ERROR",
+    message: "Unable to connect to backend system",
+    details: "Backend system is unavailable or connection parameters are incorrect. Please try again later."
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <logger level="ERROR" doc:name="Log Connectivity Error"
+                    message="Connectivity Error: #[error.description] - CorrelationId: #[correlationId]"/>
+        </on-error-propagate>
+
+        <!-- Timeout Errors (504 Gateway Timeout) -->
+        <on-error-propagate type="TIMEOUT" doc:name="On Error - Timeout">
+            <set-variable variableName="httpStatus" value="#[504]" doc:name="Set HTTP Status 504"/>
+            <ee:transform doc:name="Transform Error Response">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    code: "TIMEOUT",
+    message: "Request timed out",
+    details: "The backend system did not respond within the expected time. Please try again."
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <logger level="ERROR" doc:name="Log Timeout"
+                    message="Timeout: #[error.description] - CorrelationId: #[correlationId]"/>
+        </on-error-propagate>
+
+        <!-- Expression/Transformation Errors (500) -->
+        <on-error-propagate type="EXPRESSION, TRANSFORMATION" doc:name="On Error - Expression/Transformation">
+            <set-variable variableName="httpStatus" value="#[500]" doc:name="Set HTTP Status 500"/>
+            <ee:transform doc:name="Transform Error Response">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    code: "TRANSFORMATION_ERROR",
+    message: "Data transformation failed",
+    details: error.description default "An error occurred during data transformation"
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <logger level="ERROR" doc:name="Log Transformation Error"
+                    message="Transformation Error: #[error.description] - CorrelationId: #[correlationId]"/>
+        </on-error-propagate>
+
+        <!-- Custom Application Errors - PO Not Found (404) -->
+        <on-error-propagate type="APP:PO_NOT_FOUND" doc:name="On Error - PO Not Found">
+            <set-variable variableName="httpStatus" value="#[404]" doc:name="Set HTTP Status 404"/>
+            <ee:transform doc:name="Transform Error Response">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    code: "PO_NOT_FOUND",
+    message: error.description default "Purchase Order not found",
+    details: "The requested Purchase Order does not exist in SAP"
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <logger level="WARN" doc:name="Log PO Not Found"
+                    message="PO Not Found: #[error.description] - CorrelationId: #[correlationId]"/>
+        </on-error-propagate>
+
+        <!-- Custom Application Errors - Validation (400) -->
+        <on-error-propagate type="APP:VALIDATION_ERROR" doc:name="On Error - Validation">
+            <set-variable variableName="httpStatus" value="#[400]" doc:name="Set HTTP Status 400"/>
+            <ee:transform doc:name="Transform Error Response">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    code: "VALIDATION_ERROR",
+    message: error.description default "Request validation failed",
+    details: error.detailedDescription
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <logger level="WARN" doc:name="Log Validation Error"
+                    message="Validation Error: #[error.description] - CorrelationId: #[correlationId]"/>
+        </on-error-propagate>
+
+        <!-- Default Catch-All Handler (500) -->
+        <on-error-propagate type="ANY" doc:name="On Error - Any">
+            <set-variable variableName="httpStatus" value="#[500]" doc:name="Set HTTP Status 500"/>
+            <ee:transform doc:name="Transform Error Response">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    code: "INTERNAL_ERROR",
+    message: "An unexpected error occurred",
+    details: error.description default "Please contact support if the problem persists"
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <logger level="ERROR" doc:name="Log Unexpected Error"
+                    message="Unexpected Error: #[error.errorType] - #[error.description] - CorrelationId: #[correlationId]"/>
+        </on-error-propagate>
+
+    </error-handler>
+
+</mule>

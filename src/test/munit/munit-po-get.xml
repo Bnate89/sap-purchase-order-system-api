@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+      xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xsi:schemaLocation="
+          http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+          http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+          http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+          http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <munit:config name="munit-po-get-test-suite" doc:name="MUnit PO GET Test Suite"/>
+
+    <!-- ============================================== -->
+    <!-- Test: GET /purchase-orders - Success          -->
+    <!-- ============================================== -->
+    <munit:test name="get-purchase-orders-success-test" doc:name="GET Purchase Orders - Success">
+        <munit:behavior>
+            <!-- Mock SAP BAPI call -->
+            <munit-tools:mock-when processor="sap:synchronous-remote-function-call" doc:name="Mock SAP BAPI">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:name" whereValue="SAP Synchronous RFC Call"/>
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload value="#[readUrl('classpath://test-data/sap-po-list-response.xml', 'application/xml')]"/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+        </munit:behavior>
+
+        <munit:execution>
+            <set-variable variableName="vendorId" value="1000001" doc:name="Set vendorId"/>
+            <set-variable variableName="companyCode" value="1000" doc:name="Set companyCode"/>
+            <set-variable variableName="status" value="" doc:name="Set status"/>
+            <set-variable variableName="fromDate" value="" doc:name="Set fromDate"/>
+            <set-variable variableName="toDate" value="" doc:name="Set toDate"/>
+            <set-variable variableName="limit" value="50" doc:name="Set limit"/>
+            <set-variable variableName="offset" value="0" doc:name="Set offset"/>
+            <flow-ref name="get:\purchase-orders:sap-po-system-api-config" doc:name="Call GET PO List Flow"/>
+        </munit:execution>
+
+        <munit:validation>
+            <munit-tools:assert-that expression="#[payload]" is="#[MunitTools::notNullValue()]" doc:name="Assert payload not null"/>
+            <munit-tools:assert-that expression="#[sizeOf(payload)]" is="#[MunitTools::greaterThanOrEqualTo(0)]" doc:name="Assert array returned"/>
+        </munit:validation>
+    </munit:test>
+
+    <!-- ============================================== -->
+    <!-- Test: GET /purchase-orders/{poId} - Success   -->
+    <!-- ============================================== -->
+    <munit:test name="get-purchase-order-by-id-success-test" doc:name="GET Purchase Order by ID - Success">
+        <munit:behavior>
+            <!-- Mock SAP BAPI call -->
+            <munit-tools:mock-when processor="sap:synchronous-remote-function-call" doc:name="Mock SAP BAPI">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:name" whereValue="SAP Synchronous RFC Call"/>
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload value="#[readUrl('classpath://test-data/sap-po-detail-response.xml', 'application/xml')]"/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+        </munit:behavior>
+
+        <munit:execution>
+            <set-variable variableName="poId" value="4500000001" doc:name="Set poId"/>
+            <flow-ref name="get:\purchase-orders\(poId):sap-po-system-api-config" doc:name="Call GET PO by ID Flow"/>
+        </munit:execution>
+
+        <munit:validation>
+            <munit-tools:assert-that expression="#[payload.id]" is="#[MunitTools::notNullValue()]" doc:name="Assert PO ID not null"/>
+            <munit-tools:assert-that expression="#[payload.companyCode]" is="#[MunitTools::notNullValue()]" doc:name="Assert companyCode not null"/>
+        </munit:validation>
+    </munit:test>
+
+    <!-- ============================================== -->
+    <!-- Test: GET /purchase-orders/{poId} - Not Found -->
+    <!-- ============================================== -->
+    <munit:test name="get-purchase-order-by-id-not-found-test" doc:name="GET Purchase Order by ID - Not Found" expectedErrorType="APP:PO_NOT_FOUND">
+        <munit:behavior>
+            <!-- Mock SAP BAPI call returning empty PO -->
+            <munit-tools:mock-when processor="sap:synchronous-remote-function-call" doc:name="Mock SAP BAPI">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:name" whereValue="SAP Synchronous RFC Call"/>
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload value="#[readUrl('classpath://test-data/sap-po-not-found-response.xml', 'application/xml')]"/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+        </munit:behavior>
+
+        <munit:execution>
+            <set-variable variableName="poId" value="9999999999" doc:name="Set non-existent poId"/>
+            <flow-ref name="get:\purchase-orders\(poId):sap-po-system-api-config" doc:name="Call GET PO by ID Flow"/>
+        </munit:execution>
+    </munit:test>
+
+    <!-- ============================================== -->
+    <!-- Test: Connectivity Error                      -->
+    <!-- ============================================== -->
+    <!-- NOTE: When SAP connector is enabled, update expectedErrorType to SAP:CONNECTIVITY -->
+    <munit:test name="get-purchase-order-connectivity-error-test" doc:name="GET Purchase Order - Connectivity Error" expectedErrorType="CONNECTIVITY">
+        <munit:behavior>
+            <!-- Mock connectivity error -->
+            <munit-tools:mock-when processor="ee:transform" doc:name="Mock Transform Error">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:name" whereValue="Mock BAPI_PO_GETDETAIL Response"/>
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:error typeId="CONNECTIVITY"/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+        </munit:behavior>
+
+        <munit:execution>
+            <set-variable variableName="poId" value="4500000001" doc:name="Set poId"/>
+            <flow-ref name="get:\purchase-orders\(poId):sap-po-system-api-config" doc:name="Call GET PO by ID Flow"/>
+        </munit:execution>
+    </munit:test>
+
+</mule>

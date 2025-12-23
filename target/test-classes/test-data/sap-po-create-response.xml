@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BAPI_PO_CREATE1>
+    <EXPURCHASEORDER>4500000003</EXPURCHASEORDER>
+    <RETURN>
+        <BAPIRET2>
+            <TYPE>S</TYPE>
+            <ID>06</ID>
+            <NUMBER>017</NUMBER>
+            <MESSAGE>Purchase order 4500000003 created</MESSAGE>
+        </BAPIRET2>
+    </RETURN>
+</BAPI_PO_CREATE1>
